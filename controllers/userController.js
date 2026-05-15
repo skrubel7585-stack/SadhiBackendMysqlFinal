@@ -656,20 +656,51 @@ const getMatches = async (req, res) => {
         
         const result = await User.search(filters, 1, 50, req.userId);
         
-        const matches = (result.users || []).map(user => ({
-            _id: user.user_id,
-            id: user.user_id,
-            name: user.user_name,
-            age: user.user_dob ? calculateAge(user.user_dob) : 25,
-            city: user.user_city || 'Unknown',
-            state: user.user_state || 'Unknown',
-            occupation: user.user_jobType || 'Professional',
-            profilePicture: user.user_img || null,
-            compatibility: Math.floor(Math.random() * 30) + 70,
-            isOnline: user.is_online || false,
-            isPremium: user.plan_type === 'premium',
-            matchedAt: user.user_create_date || new Date().toISOString()
-        }));
+        console.log("📊 Search results count:", result.users?.length || 0);
+        
+        const matches = (result.users || []).map(user => {
+            // ডিবাগ লগ - দেখুন user_img আসছে কিনা
+            console.log(`👤 User: ${user.user_name}, user_img:`, user.user_img);
+            
+            // ইমেজ URL তৈরি করুন (সরাসরি full URL)
+            let profileImageUrl = null;
+            if (user.user_img) {
+                // যদি ইমেজ পাথ থাকে
+                if (user.user_img.startsWith('http')) {
+                    profileImageUrl = user.user_img;
+                } else {
+                    profileImageUrl = `https://www.rishtonkamela.com/upload/${user.user_img}`;
+                }
+            } else {
+                // ডিফল্ট avatar URL
+                profileImageUrl = `https://ui-avatars.com/api/?name=${encodeURIComponent(user.user_name)}&background=FF6B6B&color=fff&size=200&bold=true&length=2`;
+            }
+            
+            return {
+                _id: user.user_id,
+                id: user.user_id,
+                name: user.user_name,
+                user_name: user.user_name,
+                age: user.user_dob ? calculateAge(user.user_dob) : 25,
+                user_age: user.user_dob ? calculateAge(user.user_dob) : 25,
+                city: user.user_city || 'Unknown',
+                user_city: user.user_city || 'Unknown',
+                state: user.user_state || 'Unknown',
+                user_state: user.user_state || 'Unknown',
+                occupation: user.user_jobType || 'Professional',
+                user_jobType: user.user_jobType || 'Professional',
+                // এখানে সরাসরি full URL পাঠান
+                profilePicture: profileImageUrl,
+                user_img: profileImageUrl,
+                compatibility: Math.floor(Math.random() * 30) + 70,
+                isOnline: user.is_online || false,
+                isPremium: user.plan_type === 'premium',
+                matchedAt: user.user_create_date || new Date().toISOString(),
+                about: user.about || user.user_address || "Looking for meaningful connections"
+            };
+        });
+        
+        console.log("✅ First match image URL:", matches[0]?.profilePicture);
         
         res.json({
             success: true,
