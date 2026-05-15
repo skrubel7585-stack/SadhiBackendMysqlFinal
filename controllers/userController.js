@@ -6,7 +6,7 @@ const crypto = require('crypto');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_test_mYFRQUddrXZ4Uv',
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_ryIBxXaliWjSEe',
     key_secret: process.env.RAZORPAY_KEY_SECRET || 'your_test_secret_key'
 });
 
@@ -58,7 +58,7 @@ const createRazorpayOrder = async (req, res) => {
             order_id: order.id,
             amount: order.amount,
             currency: order.currency,
-            key: process.env.RAZORPAY_KEY_ID || 'rzp_test_mYFRQUddrXZ4Uv'
+            key: process.env.RAZORPAY_KEY_ID || 'rzp_live_ryIBxXaliWjSEe'
         });
     } catch (error) {
         console.error('Razorpay order creation error:', error);
@@ -280,7 +280,7 @@ const registerUser = async (req, res) => {
             userId: userId,
             requiresPayment: !paymentId,
             paymentAmount: 99,
-            razorpayKey: process.env.RAZORPAY_KEY_ID || 'rzp_test_mYFRQUddrXZ4Uv',
+            razorpayKey: process.env.RAZORPAY_KEY_ID || 'rzp_live_ryIBxXaliWjSEe',
             user: {
                 id: userId,
                 user_gen_id: user_gen_id,
