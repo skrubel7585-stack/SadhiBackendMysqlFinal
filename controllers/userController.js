@@ -336,35 +336,57 @@ const completeRegistration = async (req, res) => {
 // @route   POST /api/users/login
 const loginUser = async (req, res) => {
     try {
-        const { mobileNumber, password } = req.body;
+        const { mobileNumber, email, password } = req.body;
+        
+        // Check if either mobileNumber or email is provided
+        const loginIdentifier = mobileNumber || email;
 
-        if (!mobileNumber || !password) {
+        if (!loginIdentifier || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Please provide Mobile Number and password'
+                message: 'Please provide Mobile Number/Email and password'
             });
         }
 
-        let user = await User.findByEmail(mobileNumber);
+        let user = null;
+        
+        // Check if loginIdentifier is mobile number (10 digits) or email
+        const isMobileNumber = /^\d{10}$/.test(loginIdentifier);
+        
+        if (isMobileNumber) {
+            // Search by mobile number
+            user = await User.findByMobileNumber(loginIdentifier);
+            console.log("🔍 Searching by mobile number:", loginIdentifier);
+        } else {
+            // Search by email
+            user = await User.findByEmail(loginIdentifier);
+            console.log("🔍 Searching by email:", loginIdentifier);
+        }
         
         if (!user) {
+            console.log("❌ User not found with identifier:", loginIdentifier);
             return res.status(401).json({
                 success: false,
-                message: 'Invalid Mobile Number or password'
+                message: 'Invalid Mobile Number/Email or password'
             });
         }
+
+        console.log("✅ User found:", user.user_name, "User ID:", user.user_id);
 
         // Plain text password comparison
         const isPasswordValid = (password === user.user_pass);
         
         if (!isPasswordValid) {
+            console.log("❌ Invalid password for user:", user.user_name);
             return res.status(401).json({
                 success: false,
-                message: 'Invalid Mobile Number or password'
+                message: 'Invalid Mobile Number/Email or password'
             });
         }
 
+        // Check if user is active
         if (user.user_status !== 1) {
+            console.log("⚠️ User account not active. Status:", user.user_status);
             return res.status(403).json({
                 success: false,
                 message: user.user_payment_status === 'pending' 
@@ -373,12 +395,16 @@ const loginUser = async (req, res) => {
             });
         }
 
+        // Update last login
         await User.updateLastLogin(user.user_id);
+        
+        // Generate token
         const token = generateToken(user.user_id);
 
         // Remove sensitive data
         delete user.user_pass;
 
+        // Send response
         res.json({
             success: true,
             message: 'Login successful',
