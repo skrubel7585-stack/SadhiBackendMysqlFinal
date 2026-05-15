@@ -1,7 +1,5 @@
 // Updated controller with Razorpay integration
 const User = require('../models/User');
-const Chat = require('../models/Chat');
-const Photo = require('../models/Photo');
 const jwt = require('jsonwebtoken');
 const Razorpay = require('razorpay');
 const crypto = require('crypto');
@@ -14,8 +12,8 @@ const razorpay = new Razorpay({
 
 // Generate JWT Token
 const generateToken = (userId) => {
-    return jwt.sign({ userId }, process.env.JWT_SECRET, {
-        expiresIn: process.env.JWT_EXPIRE || '7d'
+    return jwt.sign({ id: userId }, process.env.JWT_SECRET || 'your_jwt_secret_key', {
+        expiresIn: process.env.JWT_EXPIRE || '30d'
     });
 };
 
@@ -44,7 +42,7 @@ const createRazorpayOrder = async (req, res) => {
         const { amount = 99, currency = 'INR' } = req.body;
         
         const options = {
-            amount: amount * 100, // Amount in paise
+            amount: amount * 100,
             currency: currency,
             receipt: `receipt_${Date.now()}`,
             payment_capture: 1,
@@ -87,7 +85,12 @@ const verifyPayment = async (req, res) => {
         const isAuthentic = expectedSignature === razorpay_signature;
 
         if (isAuthentic) {
-            // Payment is successful
+            // Update payment status if user ID is available
+            if (req.userId) {
+                await User.updatePaymentStatus(req.userId, razorpay_payment_id, 99);
+                await User.updateStatus(req.userId, 1);
+            }
+            
             res.json({
                 success: true,
                 message: 'Payment verified successfully',
@@ -110,41 +113,58 @@ const verifyPayment = async (req, res) => {
     }
 };
 
-// @desc    Register new user with payment
+// @desc    Register new user
 // @route   POST /api/users/register
 const registerUser = async (req, res) => {
     try {
         const {
-            // Step 1: Basic Info
-            name, email, mobileNumber, password, gender, lookingFor,
-            
-            // Step 2: Personal Details
-            dateOfBirth, religion, caste, motherTongue, maritalStatus,
-            hasKids, childrenCount, boysCount, girlsCount, childrenNames,
-            whoYouStayWith, whereYouBelong,
-            
-            // Step 3: Professional Details
-            education, school, college, occupation, annualIncome,
-            companyName, currentResident,
-            
-            // Step 4: Address & Lifestyle
-            address, height, weight, diet, smoking, drinking, hobbies,
-            
-            // Step 5: Family & About
-            fatherName, motherName, disability, about,
-            
-            // Partner Preferences
+            name,
+            email,
+            mobileNumber,
+            password,
+            gender,
+            lookingFor,
+            dateOfBirth,
+            religion,
+            caste,
+            motherTongue,
+            maritalStatus,
+            hasKids,
+            childrenCount,
+            boysCount,
+            girlsCount,
+            childrenNames,
+            whoYouStayWith,
+            whereYouBelong,
+            education,
+            school,
+            college,
+            occupation,
+            annualIncome,
+            companyName,
+            currentResident,
+            address,
+            height,
+            weight,
+            diet,
+            smoking,
+            drinking,
+            hobbies,
+            fatherName,
+            motherName,
+            disability,
+            about,
             partnerPreferences = {},
-            
-            // Payment Info
-            paymentId, paymentAmount = 99, paymentStatus = 'pending'
+            paymentId,
+            paymentAmount = 99,
+            paymentStatus = 'pending'
         } = req.body;
 
         // Validate required fields
-        if (!name || !email || !mobileNumber || !password || !gender || !lookingFor) {
+        if (!name || !email || !mobileNumber || !password || !gender) {
             return res.status(400).json({
                 success: false,
-                message: 'Please provide all required fields: name, email, mobileNumber, password, gender, lookingFor'
+                message: 'Please provide all required fields: name, email, mobileNumber, password, gender'
             });
         }
 
@@ -174,19 +194,19 @@ const registerUser = async (req, res) => {
             age = calculateAge(dateOfBirth);
         }
 
-        // Prepare user data for database
+        // Prepare user data
         const userData = {
             user_gen_id,
             user_name: name,
-            user_namecast: lookingFor,
-            user_nameintercast: lookingFor,
+            user_namecast: lookingFor || '',
+            user_nameintercast: lookingFor || '',
             user_religion: religion || '',
             user_mother_tongue: motherTongue || '',
             user_gender: gender,
             user_phone: mobileNumber,
             user_email: email,
-            user_pass: password, // Plain text as per your requirement
-            user_status: paymentId ? 1 : 0, // Active only if payment is done
+            user_pass: password,
+            user_status: paymentId ? 1 : 0,
             user_payment_status: paymentId ? 'completed' : 'pending',
             user_otp_status: 0,
             user_city: address?.city || '',
@@ -202,7 +222,7 @@ const registerUser = async (req, res) => {
             user_companyName: companyName || '',
             user_currentResident: currentResident || '',
             user_salary: annualIncome || '',
-            user_degree: education?.highestDegree || '',
+            user_degree: education || '',
             user_school: school || '',
             user_collage: college || '',
             user_hobbies: hobbies || '',
@@ -228,7 +248,7 @@ const registerUser = async (req, res) => {
         // Create user
         const userId = await User.create(userData);
 
-        // Store partner preferences if provided
+        // Store partner preferences
         if (Object.keys(partnerPreferences).length > 0) {
             await User.savePartnerPreferences(userId, {
                 min_age: partnerPreferences.minAge || 21,
@@ -244,6 +264,7 @@ const registerUser = async (req, res) => {
         // Update payment info if payment successful
         if (paymentId) {
             await User.updatePaymentStatus(userId, paymentId, paymentAmount);
+            await User.updateStatus(userId, 1);
         }
 
         // Generate token
@@ -256,6 +277,7 @@ const registerUser = async (req, res) => {
             success: true,
             message: paymentId ? 'User registered successfully with payment' : 'Registration successful! Please complete payment to activate your account.',
             token: token,
+            userId: userId,
             requiresPayment: !paymentId,
             paymentAmount: 99,
             razorpayKey: process.env.RAZORPAY_KEY_ID || 'rzp_test_mYFRQUddrXZ4Uv',
@@ -273,8 +295,7 @@ const registerUser = async (req, res) => {
         console.error('Register error:', error);
         res.status(500).json({
             success: false,
-            message: 'Server error: ' + error.message,
-            error: process.env.NODE_ENV === 'development' ? error.stack : undefined
+            message: 'Server error: ' + error.message
         });
     }
 };
@@ -292,15 +313,15 @@ const completeRegistration = async (req, res) => {
             });
         }
         
-        // Update user payment status
         await User.updatePaymentStatus(userId, paymentId, paymentAmount);
-        
-        // Activate user account
         await User.updateStatus(userId, 1);
+        
+        const token = generateToken(userId);
         
         res.json({
             success: true,
-            message: 'Payment completed and account activated successfully'
+            message: 'Payment completed and account activated successfully',
+            token: token
         });
     } catch (error) {
         console.error('Complete registration error:', error);
@@ -315,38 +336,31 @@ const completeRegistration = async (req, res) => {
 // @route   POST /api/users/login
 const loginUser = async (req, res) => {
     try {
-        const { email, mobileNumber, password } = req.body;
-        
-        const loginIdentifier = email || mobileNumber;
+        const { email, password } = req.body;
 
-        if (!loginIdentifier || !password) {
+        if (!email || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Please provide email/mobile number and password'
+                message: 'Please provide email and password'
             });
         }
 
-        let user;
-        
-        if (loginIdentifier.length === 10 && /^\d+$/.test(loginIdentifier)) {
-            user = await User.findByMobileNumber(loginIdentifier);
-        } else {
-            user = await User.findByEmail(loginIdentifier);
-        }
+        let user = await User.findByEmail(email);
         
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid mobile number/email or password'
+                message: 'Invalid email or password'
             });
         }
 
+        // Plain text password comparison
         const isPasswordValid = (password === user.user_pass);
         
         if (!isPasswordValid) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid mobile number/email or password'
+                message: 'Invalid email or password'
             });
         }
 
@@ -362,15 +376,27 @@ const loginUser = async (req, res) => {
         await User.updateLastLogin(user.user_id);
         const token = generateToken(user.user_id);
 
+        // Remove sensitive data
         delete user.user_pass;
-        delete user.reset_token_hash;
-        delete user.reset_token_expires_at;
 
         res.json({
             success: true,
             message: 'Login successful',
             token: token,
-            user: user
+            user: {
+                id: user.user_id,
+                name: user.user_name,
+                email: user.user_email,
+                phone: user.user_phone,
+                gender: user.user_gender,
+                age: user.user_dob ? calculateAge(user.user_dob) : null,
+                city: user.user_city,
+                state: user.user_state,
+                profilePicture: user.user_img,
+                isPremium: user.plan_type === 'premium',
+                isOnline: user.is_online || false,
+                paymentStatus: user.user_payment_status
+            }
         });
     } catch (error) {
         console.error('Login error:', error);
@@ -382,7 +408,7 @@ const loginUser = async (req, res) => {
 };
 
 // @desc    Get current user profile
-// @route   GET /api/auth/me
+// @route   GET /api/users/me
 const getCurrentUser = async (req, res) => {
     try {
         const user = await User.findById(req.userId);
@@ -394,35 +420,30 @@ const getCurrentUser = async (req, res) => {
         }
 
         delete user.user_pass;
-        delete user.reset_token_hash;
-        delete user.reset_token_expires_at;
-
-        const formattedUser = {
-            id: user.user_id,
-            user_gen_id: user.user_gen_id,
-            name: user.user_name || 'User',
-            email: user.user_email || '',
-            phone: user.user_phone || '',
-            gender: user.user_gender || '',
-            age: user.user_dob ? calculateAge(user.user_dob) : null,
-            city: user.user_city || 'Unknown',
-            state: user.user_state || 'India',
-            religion: user.user_religion || '',
-            maritalstatus: user.user_maritalstatus || '',
-            profilePhoto: user.user_img || null,
-            paymentStatus: user.user_payment_status,
-            planType: user.plan_type,
-            planExpiryDate: user.plan_expiry_date,
-            address: {
-                city: user.user_city || 'Unknown',
-                state: user.user_state || 'India',
-                country: user.user_country || 'India'
-            }
-        };
 
         res.json({
             success: true,
-            user: formattedUser
+            user: {
+                id: user.user_id,
+                name: user.user_name,
+                email: user.user_email,
+                phone: user.user_phone,
+                gender: user.user_gender,
+                age: user.user_dob ? calculateAge(user.user_dob) : null,
+                city: user.user_city,
+                state: user.user_state,
+                country: user.user_country,
+                religion: user.user_religion,
+                motherTongue: user.user_mother_tongue,
+                maritalStatus: user.user_maritalstatus,
+                occupation: user.user_jobType,
+                education: user.user_degree,
+                about: user.about,
+                profilePicture: user.user_img,
+                isPremium: user.plan_type === 'premium',
+                isOnline: user.is_online || false,
+                paymentStatus: user.user_payment_status
+            }
         });
     } catch (error) {
         console.error('Get current user error:', error);
@@ -433,152 +454,55 @@ const getCurrentUser = async (req, res) => {
     }
 };
 
-// @desc    Get matches for user
-// @route   GET /api/auth/matches
-const getMatches = async (req, res) => {
-    try {
-        const currentUser = await User.findById(req.userId);
-        if (!currentUser) {
-            return res.status(404).json({
-                success: false,
-                message: 'User not found'
-            });
-        }
-        
-        const oppositeGender = currentUser.user_gender === 'male' ? 'female' : 'male';
-        
-        const filters = {
-            user_gender: oppositeGender,
-            user_status: 1,
-            user_payment_status: 'completed'
-        };
-        
-        const result = await User.search(filters, 1, 20, req.userId);
-        
-        const matches = (result.users || []).map(user => ({
-            _id: user.user_id,
-            id: user.user_id,
-            name: user.user_name || 'User',
-            age: user.user_dob ? calculateAge(user.user_dob) : 25,
-            city: user.user_city || 'Unknown',
-            state: user.user_state || 'India',
-            compatibility: Math.floor(Math.random() * 30) + 70,
-            profilePhoto: user.user_img || null,
-            address: {
-                city: user.user_city || 'Unknown',
-                state: user.user_state || 'India'
-            }
-        }));
-        
-        res.json({
-            success: true,
-            matches: matches
-        });
-    } catch (error) {
-        console.error('Get matches error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server error: ' + error.message
-        });
-    }
-};
-
-// @desc    Get activities
-// @route   GET /api/auth/activities
-const getActivities = async (req, res) => {
-    try {
-        const activities = [
-            { id: 1, text: 'Someone viewed your profile', time: '5 minutes ago', icon: 'eye-outline' },
-            { id: 2, text: 'New match found!', time: '1 hour ago', icon: 'heart-circle-outline' },
-            { id: 3, text: 'Interest received from Priya', time: '2 hours ago', icon: 'chatbubble-outline' },
-            { id: 4, text: 'Your profile is getting more views', time: '1 day ago', icon: 'trending-up-outline' }
-        ];
-        
-        res.json({
-            success: true,
-            activities: activities
-        });
-    } catch (error) {
-        console.error('Get activities error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server error: ' + error.message
-        });
-    }
-};
-
-// @desc    Get user stats
-// @route   GET /api/auth/stats
-const getUserStats = async (req, res) => {
-    try {
-        const stats = {
-            profileViews: Math.floor(Math.random() * 100) + 50,
-            interests: Math.floor(Math.random() * 50) + 10,
-            matches: Math.floor(Math.random() * 30) + 5,
-            profileScore: Math.floor(Math.random() * 40) + 60
-        };
-        
-        res.json({
-            success: true,
-            stats: stats
-        });
-    } catch (error) {
-        console.error('Get stats error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server error: ' + error.message
-        });
-    }
-};
-
-// @desc    Send interest
-// @route   POST /api/auth/send-interest
-const sendInterest = async (req, res) => {
-    try {
-        const { targetUserId } = req.body;
-        
-        if (!targetUserId) {
-            return res.status(400).json({
-                success: false,
-                message: 'Target user ID is required'
-            });
-        }
-        
-        // Save interest to database
-        await User.sendInterest(req.userId, targetUserId);
-        
-        res.json({
-            success: true,
-            message: 'Interest sent successfully'
-        });
-    } catch (error) {
-        console.error('Send interest error:', error);
-        res.status(500).json({
-            success: false,
-            message: 'Server error: ' + error.message
-        });
-    }
-};
-
-// @desc    Get user profile by id
+// @desc    Get user profile by ID
 // @route   GET /api/users/profile/:id
 const getUserProfile = async (req, res) => {
     try {
-        const user = await User.findById(req.params.id);
+        const userId = req.params.id;
+        console.log("🔍 Fetching profile for user ID:", userId);
+        
+        // For MySQL, convert to number if needed
+        const numericId = parseInt(userId);
+        
+        const user = await User.findById(numericId);
+        
         if (!user) {
+            console.log("❌ User not found:", userId);
             return res.status(404).json({
                 success: false,
                 message: 'User not found'
             });
         }
 
+        // Remove password
         delete user.user_pass;
-        delete user.reset_token_hash;
-        delete user.reset_token_expires_at;
+        
+        console.log("✅ User found:", user.user_name);
 
+        // Format response for frontend
         res.json({
             success: true,
-            data: user
+            user: {
+                _id: user.user_id,
+                id: user.user_id,
+                name: user.user_name,
+                email: user.user_email,
+                phone: user.user_phone,
+                age: user.user_dob ? calculateAge(user.user_dob) : null,
+                gender: user.user_gender,
+                city: user.user_city || 'Not specified',
+                state: user.user_state || 'Not specified',
+                country: user.user_country || 'India',
+                religion: user.user_religion || 'Not specified',
+                motherTongue: user.user_mother_tongue || 'Not specified',
+                maritalStatus: user.user_maritalstatus || 'Not specified',
+                occupation: user.user_jobType || 'Not specified',
+                education: user.user_degree || 'Not specified',
+                about: user.about || user.user_address || 'No description provided',
+                profilePicture: user.user_img || null,
+                // isPremium: user.plan_type === 'premium',
+                isOnline: user.is_online || false
+            }
         });
     } catch (error) {
         console.error('Get profile error:', error);
@@ -608,7 +532,7 @@ const updateUserProfile = async (req, res) => {
         res.json({
             success: true,
             message: 'Profile updated successfully',
-            data: updatedUser
+            user: updatedUser
         });
     } catch (error) {
         console.error('Update profile error:', error);
@@ -673,7 +597,7 @@ const searchUsers = async (req, res) => {
         
         res.json({
             success: true,
-            data: result
+            ...result
         });
     } catch (error) {
         console.error('Search error:', error);
@@ -684,50 +608,160 @@ const searchUsers = async (req, res) => {
     }
 };
 
-// @desc    Delete user account
-// @route   DELETE /api/users/account
-const deleteAccount = async (req, res) => {
+// @desc    Get matches for user
+// @route   GET /api/users/matches
+const getMatches = async (req, res) => {
     try {
-        const { password } = req.body;
-        
-        if (!password) {
-            return res.status(400).json({
+        const currentUser = await User.findById(req.userId);
+        if (!currentUser) {
+            return res.status(404).json({
                 success: false,
-                message: 'Password is required to delete account'
+                message: 'User not found'
             });
         }
         
-        const user = await User.findById(req.userId);
-        const isPasswordValid = (password === user.user_pass);
+        const oppositeGender = currentUser.user_gender === 'male' ? 'female' : 'male';
         
-        if (!isPasswordValid) {
-            return res.status(401).json({
-                success: false,
-                message: 'Password is incorrect'
-            });
-        }
-
-        const deleted = await User.delete(req.userId);
+        const filters = {
+            user_gender: oppositeGender,
+            user_status: 1,
+            user_payment_status: 'completed'
+        };
         
-        if (deleted) {
-            res.json({
-                success: true,
-                message: 'Account deleted successfully'
-            });
-        } else {
-            res.status(400).json({
-                success: false,
-                message: 'Failed to delete account'
-            });
-        }
+        const result = await User.search(filters, 1, 50, req.userId);
+        
+        const matches = (result.users || []).map(user => ({
+            _id: user.user_id,
+            id: user.user_id,
+            name: user.user_name,
+            age: user.user_dob ? calculateAge(user.user_dob) : 25,
+            city: user.user_city || 'Unknown',
+            state: user.user_state || 'Unknown',
+            occupation: user.user_jobType || 'Professional',
+            profilePicture: user.user_img || null,
+            compatibility: Math.floor(Math.random() * 30) + 70,
+            isOnline: user.is_online || false,
+            isPremium: user.plan_type === 'premium',
+            matchedAt: user.user_create_date || new Date().toISOString()
+        }));
+        
+        res.json({
+            success: true,
+            matches: matches
+        });
     } catch (error) {
-        console.error('Delete account error:', error);
+        console.error('Get matches error:', error);
         res.status(500).json({
             success: false,
             message: 'Server error: ' + error.message
         });
     }
 };
+
+// @desc    Get activities
+// @route   GET /api/users/activities
+const getActivities = async (req, res) => {
+    try {
+        const activities = [
+            { id: 1, text: 'Someone viewed your profile', time: '5 minutes ago', icon: 'eye-outline' },
+            { id: 2, text: 'New match found!', time: '1 hour ago', icon: 'heart-circle-outline' },
+            { id: 3, text: 'Interest received from a user', time: '2 hours ago', icon: 'chatbubble-outline' },
+            { id: 4, text: 'Your profile is getting more views', time: '1 day ago', icon: 'trending-up-outline' }
+        ];
+        
+        res.json({
+            success: true,
+            activities: activities
+        });
+    } catch (error) {
+        console.error('Get activities error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error: ' + error.message
+        });
+    }
+};
+
+// @desc    Get user stats
+// @route   GET /api/users/stats
+const getUserStats = async (req, res) => {
+    try {
+        const stats = {
+            profileViews: Math.floor(Math.random() * 100) + 50,
+            interests: Math.floor(Math.random() * 50) + 10,
+            matches: Math.floor(Math.random() * 30) + 5,
+            profileScore: Math.floor(Math.random() * 40) + 60
+        };
+        
+        res.json({
+            success: true,
+            stats: stats
+        });
+    } catch (error) {
+        console.error('Get stats error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error: ' + error.message
+        });
+    }
+};
+
+// @desc    Send interest
+// @route   POST /api/users/send-interest
+const sendInterest = async (req, res) => {
+    try {
+        const { toUserId } = req.body;
+        const fromUserId = req.userId;
+        
+        if (!toUserId) {
+            return res.status(400).json({
+                success: false,
+                message: 'Target user ID is required'
+            });
+        }
+        
+        const result = await User.sendInterest(fromUserId, toUserId);
+        
+        res.json({
+            success: true,
+            message: 'Interest sent successfully'
+        });
+    } catch (error) {
+        console.error('Send interest error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error: ' + error.message
+        });
+    }
+};
+
+// @desc    Check interest status
+// @route   GET /api/users/check-interest/:id
+// const checkInterest = async (req, res) => {
+//     try {
+//         const toUserId = req.params.id;
+//         const fromUserId = req.userId;
+        
+//         const query = `
+//             SELECT id FROM interests 
+//             WHERE from_user_id = ? AND to_user_id = ? AND status = 'pending'
+//         `;
+        
+//         const { promisePool } = require('../config/database');
+//         const [rows] = await promisePool.execute(query, [fromUserId, toUserId]);
+        
+//         res.json({
+//             success: true,
+//             isInterested: rows.length > 0
+//         });
+//     } catch (error) {
+//         console.error('Check interest error:', error);
+//         res.status(500).json({
+//             success: false,
+//             message: 'Server error: ' + error.message
+//         });
+//     }
+// };
 
 // @desc    Get shortlist
 // @route   GET /api/users/shortlist
@@ -805,6 +839,103 @@ const removeFromShortlist = async (req, res) => {
     }
 };
 
+// @desc    Delete user account
+// @route   DELETE /api/users/account
+const deleteAccount = async (req, res) => {
+    try {
+        const { password } = req.body;
+        
+        if (!password) {
+            return res.status(400).json({
+                success: false,
+                message: 'Password is required to delete account'
+            });
+        }
+        
+        const user = await User.findById(req.userId);
+        const isPasswordValid = (password === user.user_pass);
+        
+        if (!isPasswordValid) {
+            return res.status(401).json({
+                success: false,
+                message: 'Password is incorrect'
+            });
+        }
+
+        const deleted = await User.delete(req.userId);
+        
+        if (deleted) {
+            res.json({
+                success: true,
+                message: 'Account deleted successfully'
+            });
+        } else {
+            res.status(400).json({
+                success: false,
+                message: 'Failed to delete account'
+            });
+        }
+    } catch (error) {
+        console.error('Delete account error:', error);
+        res.status(500).json({
+            success: false,
+            message: 'Server error: ' + error.message
+        });
+    }
+};
+
+// @desc    Check interest status
+// @route   GET /api/users/check-interest/:id
+const checkInterest = async (req, res) => {
+    try {
+        const toUserId = req.params.id;
+        const fromUserId = req.userId;
+        
+        console.log("🔍 Checking interest - From:", fromUserId, "To:", toUserId);
+        
+        // Check if table exists, if not create it
+        const createTableQuery = `
+            CREATE TABLE IF NOT EXISTS interests (
+                id INT PRIMARY KEY AUTO_INCREMENT,
+                from_user_id INT NOT NULL,
+                to_user_id INT NOT NULL,
+                status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
+                created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_interest (from_user_id, to_user_id),
+                INDEX idx_from_user (from_user_id),
+                INDEX idx_to_user (to_user_id)
+            )
+        `;
+        
+        const { promisePool } = require('../config/database');
+        
+        // Create table if not exists
+        await promisePool.execute(createTableQuery);
+        
+        // Check interest
+        const query = `
+            SELECT id FROM interests 
+            WHERE from_user_id = ? AND to_user_id = ? AND status = 'pending'
+        `;
+        
+        const [rows] = await promisePool.execute(query, [fromUserId, toUserId]);
+        
+        console.log("Interest exists:", rows.length > 0);
+        
+        res.json({
+            success: true,
+            isInterested: rows.length > 0
+        });
+    } catch (error) {
+        console.error('Error checking interest:', error);
+        res.status(500).json({
+            success: false,
+            message: error.message
+        });
+    }
+};
+
 module.exports = {
     registerUser,
     completeRegistration,
@@ -821,6 +952,7 @@ module.exports = {
     getActivities,
     getUserStats,
     sendInterest,
+    checkInterest,
     calculateAge,
     getShortlist,
     removeFromShortlist,
