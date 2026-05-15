@@ -8,8 +8,8 @@ const { promisePool } = require('../config/database');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_ryIBxXaliWjSEe',
-    key_secret: process.env.RAZORPAY_KEY_SECRET || 'your_test_secret_key'
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_Spb4iKNathR7ZT',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'gpXL09IvRR8ScOHNt3YU3EGx'
 });
 
 // ============ PAYMENT ROUTES ============
@@ -34,7 +34,7 @@ router.post('/payments/create-order', async (req, res) => {
             order_id: order.id,
             amount: order.amount,
             currency: order.currency,
-            key: process.env.RAZORPAY_KEY_ID || 'rzp_live_ryIBxXaliWjSEe'
+            key: process.env.RAZORPAY_KEY_ID || 'rzp_live_Spb4iKNathR7ZT'
         });
     } catch (error) {
         console.error('Razorpay order creation error:', error);
@@ -52,7 +52,7 @@ router.post('/payments/verify-payment', async (req, res) => {
         
         const body = razorpay_order_id + "|" + razorpay_payment_id;
         const expectedSignature = crypto
-            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || 'your_test_secret_key')
+            .createHmac("sha256", process.env.RAZORPAY_KEY_SECRET || 'gpXL09IvRR8ScOHNt3YU3EGx')
             .update(body.toString())
             .digest("hex");
 
