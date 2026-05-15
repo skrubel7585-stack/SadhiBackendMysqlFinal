@@ -336,21 +336,21 @@ const completeRegistration = async (req, res) => {
 // @route   POST /api/users/login
 const loginUser = async (req, res) => {
     try {
-        const { email, password } = req.body;
+        const { mobileNumber, password } = req.body;
 
-        if (!email || !password) {
+        if (!mobileNumber || !password) {
             return res.status(400).json({
                 success: false,
-                message: 'Please provide email and password'
+                message: 'Please provide Mobile Number and password'
             });
         }
 
-        let user = await User.findByEmail(email);
+        let user = await User.findByEmail(mobileNumber);
         
         if (!user) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid email or password'
+                message: 'Invalid Mobile Number or password'
             });
         }
 
@@ -360,7 +360,7 @@ const loginUser = async (req, res) => {
         if (!isPasswordValid) {
             return res.status(401).json({
                 success: false,
-                message: 'Invalid email or password'
+                message: 'Invalid Mobile Number or password'
             });
         }
 
