@@ -6,8 +6,8 @@ const crypto = require('crypto');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_Spb4iKNathR7ZT',
-    key_secret: process.env.RAZORPAY_KEY_SECRET || 'gpXL09IvRR8ScOHNt3YU3EGx'
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_Sq2UAea55vLHvb',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'IYrDZtKR6MhnIfPmp5FfBCnC'
 });
 
 // Generate JWT Token
@@ -58,7 +58,7 @@ const createRazorpayOrder = async (req, res) => {
             order_id: order.id,
             amount: order.amount,
             currency: order.currency,
-            key: process.env.RAZORPAY_KEY_ID || 'rzp_live_Spb4iKNathR7ZT'
+            key: process.env.RAZORPAY_KEY_ID || 'rzp_live_Sq2UAea55vLHvb'
         });
     } catch (error) {
         console.error('Razorpay order creation error:', error);
@@ -280,7 +280,7 @@ const registerUser = async (req, res) => {
             userId: userId,
             requiresPayment: !paymentId,
             paymentAmount: 99,
-            razorpayKey: process.env.RAZORPAY_KEY_ID || 'rzp_live_Spb4iKNathR7ZT',
+            razorpayKey: process.env.RAZORPAY_KEY_ID || 'rzp_live_Sq2UAea55vLHvb',
             user: {
                 id: userId,
                 user_gen_id: user_gen_id,

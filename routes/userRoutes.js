@@ -8,8 +8,8 @@ const { promisePool } = require('../config/database');
 
 // Initialize Razorpay
 const razorpay = new Razorpay({
-    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_Spb4iKNathR7ZT',
-    key_secret: process.env.RAZORPAY_KEY_SECRET || 'gpXL09IvRR8ScOHNt3YU3EGx'
+    key_id: process.env.RAZORPAY_KEY_ID || 'rzp_live_Sq2UAea55vLHvb',
+    key_secret: process.env.RAZORPAY_KEY_SECRET || 'IYrDZtKR6MhnIfPmp5FfBCnC'
 });
 
 // ============ PAYMENT ROUTES ============
@@ -34,7 +34,7 @@ router.post('/payments/create-order', async (req, res) => {
             order_id: order.id,
             amount: order.amount,
             currency: order.currency,
-            key: process.env.RAZORPAY_KEY_ID || 'rzp_live_Spb4iKNathR7ZT'
+            key: process.env.RAZORPAY_KEY_ID || 'rzp_live_Sq2UAea55vLHvb'
         });
     } catch (error) {
         console.error('Razorpay order creation error:', error);

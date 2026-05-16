@@ -72,7 +72,8 @@ app.get('/api', (req, res) => {
     });
 });
 // =============================================
-
+// Routes - এখানে app এর পরিবর্তে router ব্যবহার করছি
+app.use('/api/payments', paymentRoutes);
 // Test connection route
 app.get('/api/test-connection', (req, res) => {
     console.log('Test connection hit');
